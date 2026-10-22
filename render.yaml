@@ -1,0 +1,20 @@
+# Despliegue en Render (https://render.com) con el plan gratuito.
+# Render asigna el puerto en la variable PORT; HOST=0.0.0.0 hace que el
+# servidor acepte conexiones de fuera del contenedor.
+services:
+  - type: web
+    name: igasofa
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /api/estado
+    autoDeploy: true
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: NODE_VERSION
+        value: "22"
+      # Opcional: clave de Carto Basemaps. Se rellena en el panel de Render.
+      - key: CARTO_KEY
+        sync: false

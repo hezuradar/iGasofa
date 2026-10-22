@@ -30,6 +30,20 @@ PORT=8080 HOST=0.0.0.0 node server.js   # cambiar puerto / exponer en la red
 > La geolocalización del navegador exige **HTTPS o localhost**. Si abres la web desde otra IP de tu
 > red sin HTTPS, la ubicación no funcionará, pero el **código postal sí**.
 
+### Publicarla gratis en Render
+
+El repositorio incluye [`render.yaml`](render.yaml), así que el despliegue es casi automático:
+
+1. Entra en [render.com](https://render.com) con tu cuenta de GitHub.
+2. **New → Blueprint** y elige este repositorio. Render lee `render.yaml` y crea el servicio
+   `igasofa` en el plan gratuito.
+3. Pulsa **Apply**. Al terminar tendrás una dirección pública con HTTPS
+   (`https://igasofa-xxxx.onrender.com`), en la que la geolocalización también funciona.
+
+Cada `git push` a `main` vuelve a desplegar. En el plan gratuito el servicio **se duerme tras unos
+15 minutos sin visitas**: la primera visita después tarda alrededor de un minuto, porque además
+descarga de nuevo los precios del Ministerio.
+
 ---
 
 ## Funcionalidades
@@ -62,6 +76,7 @@ iGasofa/
 ├── server.js              Servidor Node sin dependencias: API + estáticos + caché
 ├── config.json            Opcional: { "cartoKey": "…" } para usar tu clave de Carto
 ├── package.json
+├── render.yaml            Despliegue en Render (plan gratuito)
 ├── tests/
 │   ├── horario.test.js    Intérprete de horarios
 │   └── server.test.js     Utilidades, caché del dataset, API y estáticos
