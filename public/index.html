@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>iGasofa · Gasolineras cercanas y precios del carburante</title>
-<meta name="description" content="Encuentra las gasolineras más cercanas a tu ubicación o código postal y compara los precios oficiales de gasóleo y gasolinas. Mapa interactivo con el mejor precio destacado, horarios y ahorro por depósito.">
+<title>iGasofa · Gasolineras cercanas y en tu ruta, con precios oficiales</title>
+<meta name="description" content="Encuentra las gasolineras más cercanas o las que hay en tu ruta entre un origen y un destino, y compara los precios oficiales de gasóleo y gasolinas. Mapa interactivo con la más barata destacada, horarios y ahorro por depósito.">
 <meta name="theme-color" content="#0f1720">
 <link rel="preconnect" href="https://a.basemaps.cartocdn.com">
 <link rel="preconnect" href="https://basemaps.cartocdn.com">
@@ -14,7 +14,9 @@
 <link rel="stylesheet" href="/styles.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230f1720'/%3E%3Cpath d='M9 22V13a4 4 0 0 1 4-4h2a4 4 0 0 1 4 4v9' fill='none' stroke='%2334d399' stroke-width='2.4' stroke-linecap='round'/%3E%3Cpath d='M7 22h16' stroke='%2334d399' stroke-width='2.4' stroke-linecap='round'/%3E%3Cpath d='M19 12h3a2 2 0 0 1 2 2v5' fill='none' stroke='%23f59e0b' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
 </head>
-<body>
+<body data-modo="cerca" data-vista="lista">
+
+<a class="saltar" href="#lista">Saltar a la lista de gasolineras</a>
 
 <header class="topbar">
   <div class="brand">
@@ -23,21 +25,58 @@
     </span>
     <div class="brand-text">
       <h1>iGasofa</h1>
-      <p>Gasolineras cercanas · precios oficiales</p>
+      <p>Gasolineras cercanas y en ruta · precios oficiales</p>
     </div>
   </div>
 
-  <form class="search" id="form-buscar" role="search" autocomplete="off">
-    <button type="button" class="btn btn-ghost" id="btn-ubicacion">
-      <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-      <span>Usar mi ubicación</span>
-    </button>
-    <div class="field">
-      <label class="sr-only" for="input-cp">Código postal</label>
-      <input id="input-cp" name="cp" type="text" inputmode="numeric" pattern="[0-9]{5}" maxlength="5" autocomplete="postal-code" placeholder="Código postal · 28001" aria-describedby="ayuda-cp">
-      <button type="submit" class="btn btn-primary">Buscar</button>
-    </div>
-  </form>
+  <div class="buscador" role="search">
+    <fieldset class="modo">
+      <legend class="sr-only">Tipo de búsqueda</legend>
+      <label><input type="radio" name="modo" value="cerca" checked><span>Cerca</span></label>
+      <label><input type="radio" name="modo" value="ruta"><span>En ruta</span></label>
+    </fieldset>
+
+    <form class="search" id="form-buscar" autocomplete="off">
+      <button type="button" class="btn btn-ghost" id="btn-ubicacion">
+        <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+        <span>Usar mi ubicación</span>
+      </button>
+      <div class="field">
+        <label class="sr-only" for="input-cp">Código postal</label>
+        <input id="input-cp" name="cp" type="text" inputmode="numeric" pattern="[0-9]{5}" maxlength="5" autocomplete="postal-code" placeholder="Código postal · 28001" aria-describedby="ayuda-cp">
+        <button type="submit" class="btn btn-primary">Buscar</button>
+      </div>
+    </form>
+
+    <form class="search search-ruta" id="form-ruta" autocomplete="off" hidden>
+      <div class="ruta-campos">
+        <div class="field field-ruta">
+          <span class="ruta-punto a" aria-hidden="true">A</span>
+          <label class="sr-only" for="input-origen">Origen</label>
+          <input id="input-origen" type="text" maxlength="120" placeholder="Origen: ciudad, dirección o CP" enterkeyhint="next">
+          <button type="button" class="btn-icono" id="btn-origen-ubicacion" title="Usar mi ubicación como origen">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+            <span class="sr-only">Usar mi ubicación como origen</span>
+          </button>
+        </div>
+        <button type="button" class="btn-icono invertir" id="btn-invertir" title="Intercambiar origen y destino">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M7 4v14M7 18l-3-3M7 18l3-3M17 20V6M17 6l-3 3M17 6l3 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span class="sr-only">Intercambiar origen y destino</span>
+        </button>
+        <div class="field field-ruta">
+          <span class="ruta-punto b" aria-hidden="true">B</span>
+          <label class="sr-only" for="input-destino">Destino</label>
+          <input id="input-destino" type="text" maxlength="120" placeholder="Destino: ciudad, dirección o CP" enterkeyhint="search">
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary">Buscar ruta</button>
+    </form>
+  </div>
+
+  <button type="button" class="busqueda-resumen" id="btn-editar-busqueda" hidden>
+    <span class="busqueda-resumen-texto"></span>
+    <span class="busqueda-resumen-accion">Cambiar</span>
+  </button>
 
   <div class="estado" id="estado" title="Fuente de datos" role="status">
     <span class="estado-dot" aria-hidden="true"></span>
@@ -47,14 +86,14 @@
 
 <main class="layout">
 
-  <aside class="panel" aria-label="Listado de gasolineras">
+  <aside class="panel" aria-label="Gasolineras">
 
     <div class="vacio" id="vacio">
       <div class="vacio-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="40" height="40"><path d="M4 20V10a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v10M3 20h11M13 12h4a2 2 0 0 1 2 2v4M19 16v3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </div>
       <h2>¿Dónde repostamos?</h2>
-      <p>Comparte tu ubicación o introduce tu código postal y te muestro las gasolineras más cercanas con sus precios de gasóleo y gasolina, resaltando la más barata.</p>
+      <p>Busca las gasolineras más cercanas o las que hay en tu ruta, con sus precios de gasóleo y gasolina, y te señalo la más barata.</p>
       <div class="vacio-acciones">
         <button type="button" class="btn btn-primary btn-lg" id="btn-ubicacion-2">
           <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/></svg>
@@ -66,9 +105,14 @@
           <input id="input-cp-2" type="text" inputmode="numeric" pattern="[0-9]{5}" maxlength="5" autocomplete="postal-code" placeholder="Código postal">
           <button type="submit" class="btn btn-soft">Buscar</button>
         </form>
+        <button type="button" class="btn btn-soft btn-ruta" id="btn-ruta-2">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="6" cy="18" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="18" cy="6" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8.5 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <span>Planificar una ruta</span>
+        </button>
       </div>
       <ul class="vacio-ventajas">
         <li><b>Precios oficiales</b> que cada gasolinera está obligada a comunicar</li>
+        <li><b>En tu ruta</b>: todas las gasolineras del trayecto y la más barata</li>
         <li><b>Abiertas ahora</b> según el horario declarado</li>
         <li><b>Ahorro real</b> calculado para tu depósito</li>
       </ul>
@@ -77,6 +121,8 @@
 
     <div class="panel-body" id="panel-body" hidden>
       <h2 class="sr-only">Resultados</h2>
+
+      <section class="ruta-info" id="ruta-info" aria-label="Ruta" hidden></section>
 
       <section class="resumen" id="resumen" aria-live="polite"></section>
 
@@ -87,7 +133,7 @@
         </div>
 
         <div class="filtro-fila">
-          <label class="campo">
+          <label class="campo" id="campo-radio">
             <span>Radio</span>
             <select id="select-radio">
               <option value="2">2 km</option>
@@ -98,13 +144,18 @@
               <option value="50">50 km</option>
             </select>
           </label>
+          <label class="campo" id="campo-desvio" hidden>
+            <span>Desvío máx.</span>
+            <select id="select-desvio">
+              <option value="1">1 km</option>
+              <option value="2" selected>2 km</option>
+              <option value="5">5 km</option>
+              <option value="10">10 km</option>
+            </select>
+          </label>
           <label class="campo">
             <span>Ordenar por</span>
-            <select id="select-orden">
-              <option value="distancia" selected>Distancia</option>
-              <option value="precio">Más barato</option>
-              <option value="precio-desc">Más caro</option>
-            </select>
+            <select id="select-orden"></select>
           </label>
           <label class="campo deposito">
             <span>Depósito (L)</span>
@@ -124,16 +175,24 @@
       </section>
 
       <div class="lista-cabecera">
-        <span id="contador" aria-live="polite">—</span>
-        <span class="lista-cabecera-nota" id="nota-orden"></span>
+        <div class="lista-cabecera-texto">
+          <span id="contador" aria-live="polite">—</span>
+          <span class="lista-cabecera-nota" id="nota-orden"></span>
+        </div>
+        <div class="filtro-texto">
+          <label class="sr-only" for="input-filtro">Filtrar la lista por nombre, marca, calle o municipio</label>
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="m16 16 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <input id="input-filtro" type="search" placeholder="Filtrar por nombre, marca o calle" autocomplete="off" enterkeyhint="search">
+        </div>
       </div>
 
-      <div class="lista" id="lista"></div>
+      <ol class="lista" id="lista" tabindex="-1" aria-labelledby="contador"></ol>
+      <button type="button" class="btn btn-soft btn-mas" id="btn-mas" hidden>Mostrar más</button>
 
     </div>
   </aside>
 
-  <section class="mapa-wrap">
+  <section class="mapa-wrap" aria-label="Mapa">
     <div id="mapa-fondo" aria-hidden="true"></div>
     <div id="mapa" role="application" aria-label="Mapa de gasolineras"></div>
     <div class="mapa-cargando" id="mapa-cargando" role="status" hidden>
@@ -144,7 +203,8 @@
       <span><i class="leyenda-punto barato"></i> Barata</span>
       <span><i class="leyenda-punto medio"></i> Precio medio</span>
       <span><i class="leyenda-punto caro"></i> Cara</span>
-      <span><i class="leyenda-punto yo"></i> Tu ubicación</span>
+      <span class="solo-cerca"><i class="leyenda-punto yo"></i> Tu ubicación</span>
+      <span class="solo-ruta"><i class="leyenda-linea"></i> Ruta</span>
     </div>
     <button type="button" class="btn-flotante" id="btn-mapa" title="Ver el mapa a pantalla completa" aria-label="Ampliar mapa" aria-pressed="false">
       <svg class="icono-ampliar" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -154,11 +214,22 @@
 
 </main>
 
+<nav class="tabs-movil" aria-label="Vista">
+  <button type="button" data-vista="lista" aria-pressed="true">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="4" cy="6" r="1.3" fill="currentColor"/><circle cx="4" cy="12" r="1.3" fill="currentColor"/><circle cx="4" cy="18" r="1.3" fill="currentColor"/></svg>
+    <span>Lista</span>
+  </button>
+  <button type="button" data-vista="mapa" aria-pressed="false">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="m9 4-6 2.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5L9 4ZM9 4v13.5M15 6.5V20" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+    <span>Mapa</span>
+  </button>
+</nav>
+
 <div class="aviso" id="aviso" role="alert" hidden></div>
 
 <script src="/vendor/leaflet/leaflet.js"></script>
 <script src="/horario.js"></script>
 <script src="/mapa-vector.js"></script>
-<script src="/app.js"></script>
+<script type="module" src="/js/app.js"></script>
 </body>
 </html>

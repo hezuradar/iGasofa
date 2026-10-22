@@ -14,6 +14,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const zlib = require('node:zlib');
 const { URL } = require('node:url');
+const { estacionesEnRuta, simplificar } = require('./lib/corredor');
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '127.0.0.1';
@@ -29,6 +30,18 @@ const GEO_INTERVALO_MS = 1100; // política de Nominatim: 1 petición/segundo
 const REFRESCO_MIN_MS = 2 * 60 * 1000; // /api/refrescar no puede forzar descargas en bucle
 const REINTENTO_MS = 60 * 1000; // pausa tras un fallo del Ministerio antes de reintentar
 const GEO_COLA_MAX = 20; // consultas a Nominatim en espera como máximo
+const GEO_CACHE_MAX = 2000;
+const LUGAR_MAX_CHARS = 120;
+
+// Rutas por carretera: servidor público de OSRM (sin clave, uso moderado).
+const OSRM = process.env.OSRM_URL || 'https://router.project-osrm.org';
+const TIMEOUT_RUTA_MS = 15 * 1000;
+const RUTA_CACHE_MAX = 200;
+const DESVIOS_KM = [1, 2, 5, 10];
+const DESVIO_DEFECTO_KM = 2;
+const MAX_RESULTADOS_RUTA = 3000;
+const RUTAS_POR_MINUTO = 20;
+const TRUST_PROXY = process.env.TRUST_PROXY === '1';
 
 /* ------------------------------------------------------------------ *
  * Clave de Carto (opcional)
@@ -226,24 +239,34 @@ let geoUltimaLlamada = 0;
  * a la vez. La cola es limitada: si se llena, quien llama cae a la
  * aproximación por provincia en lugar de esperar minutos.
  */
-function geocodificarCp(cp) {
-  if (geoCache.has(cp)) return Promise.resolve(geoCache.get(cp));
+function geocodificar(clave, consulta) {
+  if (geoCache.has(clave)) return Promise.resolve(geoCache.get(clave));
   if (geoEnCola >= GEO_COLA_MAX) return Promise.reject(new Error('cola del geocodificador llena'));
   geoEnCola++;
-  const turno = geoCola.then(() => consultarNominatim(cp)).finally(() => { geoEnCola--; });
+  const turno = geoCola.then(() => consultarNominatim(clave, consulta)).finally(() => { geoEnCola--; });
   geoCola = turno.catch(() => {});
   return turno;
 }
 
-async function consultarNominatim(cp) {
-  if (geoCache.has(cp)) return geoCache.get(cp);
+const geocodificarCp = (cp) =>
+  geocodificar(`cp:${cp}`, `postalcode=${encodeURIComponent(cp)}&country=Spain`);
+
+const geocodificarTexto = (texto) =>
+  geocodificar(`q:${texto.toLowerCase()}`, `q=${encodeURIComponent(texto)}&countrycodes=es`);
+
+/** Caché acotada: con búsquedas de texto libre podría crecer sin límite. */
+function guardarGeo(clave, valor) {
+  if (geoCache.size >= GEO_CACHE_MAX) geoCache.delete(geoCache.keys().next().value);
+  geoCache.set(clave, valor);
+}
+
+async function consultarNominatim(clave, consulta) {
+  if (geoCache.has(clave)) return geoCache.get(clave);
   const espera = GEO_INTERVALO_MS - (Date.now() - geoUltimaLlamada);
   if (espera > 0) await new Promise((r) => setTimeout(r, espera));
   geoUltimaLlamada = Date.now();
 
-  const url = `https://nominatim.openstreetmap.org/search?postalcode=${encodeURIComponent(
-    cp
-  )}&country=Spain&format=jsonv2&limit=1&addressdetails=0`;
+  const url = `https://nominatim.openstreetmap.org/search?${consulta}&format=jsonv2&limit=1&addressdetails=0`;
   const r = await fetch(url, {
     headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
     signal: AbortSignal.timeout(TIMEOUT_GEO_MS),
@@ -251,17 +274,106 @@ async function consultarNominatim(cp) {
   if (!r.ok) throw new Error(`El geocodificador respondió ${r.status}`);
   const j = await r.json();
   if (!Array.isArray(j) || j.length === 0) {
-    geoCache.set(cp, null); // un CP inexistente no se vuelve a consultar
+    guardarGeo(clave, null); // un lugar inexistente no se vuelve a consultar
     return null;
   }
 
   const res = {
     lat: Number.parseFloat(j[0].lat),
     lon: Number.parseFloat(j[0].lon),
-    nombre: j[0].display_name || cp,
+    nombre: j[0].display_name || clave,
   };
-  geoCache.set(cp, res);
+  guardarGeo(clave, res);
   return res;
+}
+
+/* ------------------------------------------------------------------ *
+ * Rutas (OSRM)
+ * ------------------------------------------------------------------ */
+
+/** Error con mensaje para el usuario y código HTTP propio. */
+class ErrorUsuario extends Error {
+  constructor(estado, mensaje) {
+    super(mensaje);
+    this.estado = estado;
+  }
+}
+
+const RE_COORDS = /^\s*(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*$/;
+
+/** Origen o destino: "lat,lon" (ubicación del usuario), código postal o texto libre. */
+async function resolverLugar(texto, estaciones, papel) {
+  const t = String(texto || '').trim();
+  if (t.length < 2 || t.length > LUGAR_MAX_CHARS) {
+    throw new ErrorUsuario(400, `Indica un ${papel} válido (entre 2 y ${LUGAR_MAX_CHARS} caracteres).`);
+  }
+
+  const c = RE_COORDS.exec(t);
+  if (c) {
+    const lat = Number(c[1]);
+    const lon = Number(c[2]);
+    if (Math.abs(lat) > 90 || Math.abs(lon) > 180) throw new ErrorUsuario(400, `Coordenadas de ${papel} no válidas.`);
+    return { lat, lon, nombre: 'Tu ubicación' };
+  }
+
+  let lugar = null;
+  if (/^\d{5}$/.test(t)) {
+    lugar = centroDesdeCp(estaciones, t);
+    if (!lugar) {
+      lugar = await geocodificarCp(t).catch((err) => {
+        console.warn('[geo] Nominatim falló:', err.message);
+        throw new ErrorUsuario(503, 'El buscador de direcciones no responde. Inténtalo de nuevo en unos minutos.');
+      });
+    }
+  } else {
+    lugar = await geocodificarTexto(t).catch((err) => {
+      console.warn('[geo] Nominatim falló:', err.message);
+      throw new ErrorUsuario(503, 'El buscador de direcciones no responde. Prueba con un código postal.');
+    });
+  }
+  if (!lugar) throw new ErrorUsuario(404, `No se ha encontrado el ${papel} «${t}».`);
+  return { lat: lugar.lat, lon: lugar.lon, nombre: lugar.nombre };
+}
+
+const rutaCache = new Map();
+const rutasEnCurso = new Map();
+
+/** Una sola llamada a OSRM por trayecto aunque lleguen varias peticiones iguales a la vez. */
+function calcularRuta(origen, destino) {
+  const clave = [origen.lat, origen.lon, destino.lat, destino.lon].map((n) => n.toFixed(4)).join(',');
+  if (rutaCache.has(clave)) return Promise.resolve(rutaCache.get(clave));
+  if (!rutasEnCurso.has(clave)) {
+    rutasEnCurso.set(clave, pedirRutaOsrm(origen, destino, clave).finally(() => rutasEnCurso.delete(clave)));
+  }
+  return rutasEnCurso.get(clave);
+}
+
+async function pedirRutaOsrm(origen, destino, clave) {
+  const puntos = `${origen.lon},${origen.lat};${destino.lon},${destino.lat}`;
+  let r;
+  try {
+    r = await fetch(`${OSRM}/route/v1/driving/${puntos}?overview=full&geometries=geojson`, {
+      headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
+      signal: AbortSignal.timeout(TIMEOUT_RUTA_MS),
+    });
+  } catch {
+    throw new ErrorUsuario(503, 'El servicio de rutas no responde. Inténtalo de nuevo en unos minutos.');
+  }
+  const j = await r.json().catch(() => null);
+  if (!j) throw new ErrorUsuario(503, 'El servicio de rutas ha devuelto una respuesta no válida.');
+  if (j.code === 'NoRoute' || (j.routes && !j.routes.length)) {
+    throw new ErrorUsuario(404, 'No hay una ruta por carretera entre esos dos puntos.');
+  }
+  if (!r.ok || j.code !== 'Ok') throw new ErrorUsuario(503, 'El servicio de rutas no ha podido calcular el trayecto.');
+
+  const ruta = {
+    coords: j.routes[0].geometry.coordinates.map(([lon, lat]) => [lat, lon]),
+    distanciaKm: Math.round(j.routes[0].distance / 100) / 10,
+    duracionMin: Math.round(j.routes[0].duration / 60),
+  };
+  if (rutaCache.size >= RUTA_CACHE_MAX) rutaCache.delete(rutaCache.keys().next().value);
+  rutaCache.set(clave, ruta);
+  return ruta;
 }
 
 /* ------------------------------------------------------------------ *
@@ -425,6 +537,68 @@ async function apiPostal(req, res, url, cp) {
   });
 }
 
+async function apiRuta(req, res, url) {
+  const pedido = Number(url.searchParams.get('desvio'));
+  const desvio = DESVIOS_KM.includes(pedido) ? pedido : DESVIO_DEFECTO_KM;
+  const data = await cargarDataset();
+
+  const origen = await resolverLugar(url.searchParams.get('origen'), data.estaciones, 'origen');
+  const destino = await resolverLugar(url.searchParams.get('destino'), data.estaciones, 'destino');
+  if (haversine(origen.lat, origen.lon, destino.lat, destino.lon) < 0.2) {
+    throw new ErrorUsuario(400, 'El origen y el destino son el mismo lugar.');
+  }
+
+  const ruta = await calcularRuta(origen, destino);
+  const enRuta = estacionesEnRuta(data.estaciones, ruta.coords, desvio, ruta.distanciaKm);
+  // El tope sólo se alcanza en rutas muy largas con mucho desvío; si se recorta, se avisa.
+  const truncado = enRuta.length > MAX_RESULTADOS_RUTA;
+  const estaciones = enRuta
+    .slice(0, MAX_RESULTADOS_RUTA)
+    // `distancia` es lo que el cliente usa para ordenar "por cercanía": aquí, el desvío.
+    .map((e) => ({ ...e, distancia: e.desvio }));
+
+  responder(req, res, 200, {
+    ok: true,
+    ...metadatos(data),
+    origen,
+    destino,
+    ruta: {
+      distanciaKm: ruta.distanciaKm,
+      duracionMin: ruta.duracionMin,
+      coords: simplificar(ruta.coords).map(([lat, lon]) => [+lat.toFixed(5), +lon.toFixed(5)]),
+    },
+    desvio,
+    total: estaciones.length,
+    truncado,
+    estaciones,
+  });
+}
+
+/* Límite de peticiones por IP para /api/ruta: cada una puede gastar una
+   llamada a OSRM y dos a Nominatim, servicios públicos de uso moderado. */
+const contadoresRuta = new Map();
+
+function ipCliente(req) {
+  // Detrás de un proxy (Render) la IP real llega en X-Forwarded-For.
+  const reenviada = TRUST_PROXY && String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  return reenviada || req.socket.remoteAddress || 'desconocida';
+}
+
+function superaLimiteRuta(req) {
+  const ahora = Date.now();
+  if (contadoresRuta.size > 5000) {
+    for (const [ip, c] of contadoresRuta) if (ahora - c.inicio > 60 * 1000) contadoresRuta.delete(ip);
+  }
+  const ip = ipCliente(req);
+  const c = contadoresRuta.get(ip);
+  if (!c || ahora - c.inicio > 60 * 1000) {
+    contadoresRuta.set(ip, { inicio: ahora, n: 1 });
+    return false;
+  }
+  c.n += 1;
+  return c.n > RUTAS_POR_MINUTO;
+}
+
 function apiEstado(req, res) {
   const data = cache.estaciones ? cache : null;
   responder(req, res, 200, {
@@ -564,6 +738,13 @@ async function enrutar(req, res) {
     return apiPostal(req, res, url, cp);
   }
 
+  if (p === '/api/ruta') {
+    if (superaLimiteRuta(req)) {
+      res.setHeader('Retry-After', '60');
+      return responder(req, res, 429, { ok: false, error: 'Demasiadas búsquedas de ruta seguidas. Espera un minuto.' });
+    }
+    return apiRuta(req, res, url);
+  }
   if (p === '/api/productos') return responder(req, res, 200, { ok: true, productos: PRODUCTOS });
   if (p === '/api/estado') return apiEstado(req, res);
   if (p === '/api/refrescar') return apiRefrescar(req, res);
@@ -584,8 +765,9 @@ function crearServidor() {
     try {
       await enrutar(req, res);
     } catch (err) {
-      console.error('[error]', err);
       if (res.headersSent) return res.end();
+      if (err instanceof ErrorUsuario) return responder(req, res, err.estado, { ok: false, error: err.message });
+      console.error('[error]', err);
       // No se filtran detalles internos: sólo un mensaje comprensible.
       const caido = esFalloDelMinisterio(err);
       responder(req, res, caido ? 503 : 500, {
@@ -611,6 +793,7 @@ if (require.main === module) {
 
 module.exports = {
   PRODUCTOS,
+  OSRM,
   aNumero,
   haversine,
   limpiarCp,

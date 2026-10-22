@@ -15,6 +15,9 @@ services:
         value: 0.0.0.0
       - key: NODE_VERSION
         value: "22"
+      # Render está delante como proxy: la IP real del cliente llega en X-Forwarded-For.
+      - key: TRUST_PROXY
+        value: "1"
       # Opcional: clave de Carto Basemaps. Se rellena en el panel de Render.
       - key: CARTO_KEY
         sync: false

@@ -1,8 +1,9 @@
 # ⛽ iGasofa
 
-Web que localiza las **gasolineras más cercanas** a tu ubicación o a un **código postal**, muestra el
-**precio de cada carburante** (gasóleo, gasolinas 95/98, premium, GLP,…) y **resalta la más barata**
-tanto en el listado como en el mapa.
+Web que localiza las **gasolineras más cercanas** a tu ubicación o a un **código postal**, o **todas las
+que hay en tu ruta** entre un origen y un destino. Muestra el **precio de cada carburante** (gasóleo,
+gasolinas 95/98, premium, GLP,…) y **resalta la más barata** tanto en el listado como en el mapa.
+Funciona en escritorio y en el **móvil**.
 
 Los datos son los **oficiales del Ministerio de Industria, Comercio y Turismo** (precios que las
 gasolineras están obligadas a comunicar), no hay datos inventados ni aproximaciones.
@@ -20,7 +21,7 @@ node server.js
 Y abre **http://127.0.0.1:3000**. No hace falta `npm install`: el proyecto **no tiene dependencias**.
 
 ```bash
-npm test      # 32 tests con el runner nativo de Node (node --test), sin red
+npm test      # 42 tests con el runner nativo de Node (node --test), sin red
 ```
 
 ```bash
@@ -51,6 +52,9 @@ descarga de nuevo los precios del Ministerio.
 | | |
 |---|---|
 | **Ubicación o código postal** | Botón de geolocalización o búsqueda por CP (5 dígitos) |
+| **Gasolineras en ruta** | Modo *En ruta*: origen y destino (ciudad, dirección, CP o tu ubicación). Se traza la ruta por carretera y se listan todas las gasolineras a menos de 1, 2, 5 o 10 km del trayecto, en orden de kilómetro, con la más barata señalada en el mapa y en la lista |
+| **Lista cómoda** | Filtro por nombre, marca o calle; paginación de 30 en 30; otros carburantes plegados; cabecera fija con el recuento; botón *Ver en la lista* desde el mapa y el resumen |
+| **Versión móvil** | Pestañas *Lista* / *Mapa* abajo, barra de búsqueda que se pliega tras buscar una ruta, objetivos táctiles de 44 px y respeto de las zonas seguras del iPhone |
 | **Precios completos** | 24 carburantes: Gasóleo A, Gasolina 95 E5/E10/E25/E85, 98 E5/E10, Gasóleo Premium, GLP, biodiésel, biometanol, GNC/GNL, biogases, AdBlue, diésel y gasolina renovables, hidrógeno, metanol y amoniaco |
 | **Mejor precio resaltado** | Ficha verde en el listado + pin verde con estrella en el mapa + resumen con el ahorro frente a la media y a la más cara de la zona |
 | **Precios por tramos** | Cada precio se colorea como barato / medio / caro según los terciles de la zona, en el mapa y en el listado, con la diferencia frente al mejor |
@@ -58,14 +62,14 @@ descarga de nuevo los precios del Ministerio.
 | **Ahorro por depósito** | Coste de llenar el depósito (5–200 L, configurable) y lo que te ahorras frente a la media y a la más cara |
 | **Abiertas ahora** | Se interpreta el horario declarado (`L-V: 06:00-22:00; S-D: …`, 24 h, tramos partidos, tramos que cruzan la medianoche) y se muestra *Abierta · cierra 22:00* o *Cerrada · abre 07:00*; filtro para ocultar las cerradas |
 | **Venta restringida** | Las gasolineras sólo para socios (`Tipo Venta = R`) se señalan y no cuentan como mejor precio |
-| **Enlace compartible** | La URL guarda CP, carburante y radio (`?cp=20560&producto=G95E5`); botón *Compartir*. La ubicación GPS nunca va a la URL |
+| **Enlace compartible** | La URL guarda CP o ruta, carburante y radio (`?cp=20560&producto=G95E5`, `?origen=Oñati&destino=Bilbao`); botón *Compartir*. La ubicación GPS nunca va a la URL ni se guarda |
 | **Preferencias** | Carburante, radio, orden, filtros, depósito y último CP se recuerdan en el navegador |
 | **Mapa tipo Google Maps** | Basemap vectorial de Carto (estilo Google) con callejero y satélite, conmutables |
 | **Capa vectorial** | Basemap vectorial real de Carto (MapLibre GL) con etiquetas y calles nítidas a cualquier zoom, sincronizado con Leaflet |
 | **Marcadores con precio** | Cada pin muestra el €/L del producto elegido; las gasolineras cercanas se agrupan en círculos con el número y el precio mínimo |
 | **Ordenación y filtros** | Por distancia, por precio ascendente o descendente; radio de 2 a 50 km; filtro de las que tienen el producto seleccionado |
 | **Navegación** | Enlace a Google Maps para ver la gasolinera o calcular la ruta |
-| **Accesible** | Botones reales en lugar de tarjetas con `role=button` anidando enlaces, foco visible en marcadores, `prefers-reduced-motion` respetado, Esc para salir de pantalla completa |
+| **Accesible** | Enlace *Saltar a la lista*, lista ordenada (`<ol>`) con cada ficha etiquetada por su nombre, precios leídos como «1,669 euros por litro», foco gestionado al paginar o al venir del mapa, botones reales, foco visible en marcadores, `prefers-reduced-motion` respetado, Esc para salir de pantalla completa |
 
 ---
 
@@ -74,16 +78,24 @@ descarga de nuevo los precios del Ministerio.
 ```
 iGasofa/
 ├── server.js              Servidor Node sin dependencias: API + estáticos + caché
+├── lib/
+│   └── corredor.js        Gasolineras a lo largo de una ruta (rejilla espacial) y simplificación del trazado
 ├── config.json            Opcional: { "cartoKey": "…" } para usar tu clave de Carto
 ├── package.json
 ├── render.yaml            Despliegue en Render (plan gratuito)
 ├── tests/
+│   ├── corredor.test.js   Gasolineras en ruta
 │   ├── horario.test.js    Intérprete de horarios
-│   └── server.test.js     Utilidades, caché del dataset, API y estáticos
+│   └── server.test.js     Utilidades, caché del dataset, API (también /api/ruta) y estáticos
 └── public/
     ├── index.html
     ├── styles.css
-    ├── app.js             Lógica del cliente (mapa, lista, precios, filtros)
+    ├── js/                Cliente en módulos ES nativos (sin compilación)
+    │   ├── app.js         Arranque, búsquedas, preferencias, URL y eventos
+    │   ├── comun.js       Estado compartido, DOM y utilidades
+    │   ├── analisis.js    Precios, tramos, horarios, filtros y orden
+    │   ├── mapa.js        Mapa, marcadores, popups, ruta y vistas móviles
+    │   └── panel.js       Resumen, información de la ruta y lista
     ├── mapa-vector.js     Capa base vectorial (MapLibre sincronizado con Leaflet)
     ├── horario.js         Intérprete de horarios (compartido con los tests)
     └── vendor/
@@ -136,6 +148,10 @@ la aplicación sigue funcionando con normalidad.
 * Normaliza cada registro: precios con coma decimal → número, lat/lon WGS84, y un diccionario
   `precios` con sólo los carburantes que esa gasolinera publica.
 * Calcula distancias por **Haversine** y filtra por radio.
+* **Rutas**: resuelve origen y destino (coordenadas, CP o texto libre con Nominatim, en la misma cola
+  de 1 petición/segundo), pide el trayecto al servidor público de **OSRM** (sin clave; configurable
+  con `OSRM_URL`) y lo cachea. Las gasolineras se buscan con una rejilla espacial sobre los tramos del
+  trazado: Madrid → Barcelona (621 km, ~11.400 estaciones) se resuelve en unos 0,2 s.
 
 ### API
 
@@ -143,6 +159,7 @@ la aplicación sigue funcionando con normalidad.
 |---|---|
 | `GET /api/estaciones?lat=&lon=&radio=` | Gasolineras alrededor de unas coordenadas (radio en km, máx. 50) |
 | `GET /api/postal/:cp?radio=` | Resuelve el CP y devuelve las gasolineras cercanas |
+| `GET /api/ruta?origen=&destino=&desvio=` | Ruta por carretera y gasolineras a menos de `desvio` km (1, 2, 5 o 10), con `kmRuta` y `desvio` en cada una |
 | `GET /api/productos` | Catálogo de carburantes con su clave y nombre |
 | `GET /api/estado` | Fecha de los datos, nº de estaciones, estado de la caché y clave de Carto activa |
 | `GET /api/refrescar` | Fuerza la descarga del dataset (como mucho una vez cada 2 minutos; si no, 429) |
@@ -162,6 +179,7 @@ Se probaron tres vías, de más a menos precisa:
 * **Precios**: API REST del Ministerio de Industria, Comercio y Turismo
   (`sedeaplicaciones.minetur.gob.es/ServiciosRESTCarburantes`).
 * **Geocodificación de CP**: [Nominatim](https://nominatim.openstreetmap.org/) (OpenStreetMap).
+* **Rutas**: [OSRM](https://project-osrm.org/) (servidor de demostración público, para uso moderado).
 * **Mapa**: [Leaflet](https://leafletjs.com/) + [MapLibre GL JS](https://maplibre.org/) + teselas
   [CartoDB](https://carto.com/basemaps/) y [Esri World Imagery](https://www.esri.com/).
 
@@ -236,6 +254,10 @@ Se probaron tres vías, de más a menos precisa:
   calcula con la hora del dispositivo y no tiene en cuenta festivos. Cuando sólo se declara el lunes
   (`L: 24H`, bastante habitual) el resto de días se muestra como desconocido.
 * La **geolocalización** requiere HTTPS o localhost.
+* El **desvío** de cada gasolinera es la distancia en línea recta a la ruta, no el rodeo real por
+  carretera (una gasolinera al otro lado de una autovía puede exigir un rodeo mayor).
+* El servidor público de **OSRM** es de demostración: para un uso intenso conviene montar uno propio y
+  apuntar `OSRM_URL` a él.
 * La **capa vectorial** necesita WebGL: en navegadores o equipos sin aceleración por hardware puede
   no dibujarse. En ese caso la app cae automáticamente en la capa raster, así que el mapa sigue
   siendo utilizable.
