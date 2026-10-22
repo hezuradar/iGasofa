@@ -1,0 +1,17 @@
+{
+  "name": "igasofa",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Gasolineras más cercanas con precios de carburantes en tiempo real (datos oficiales del Ministerio de Industria) y mapa interactivo",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": ["gasolineras", "carburantes", "precios", "gasoleo", "mapa", "leaflet"],
+  "license": "MIT"
+}
