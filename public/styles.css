@@ -921,6 +921,30 @@ body.mapa-full .topbar { display: none; }
 
 .tag.km { background: #e8f0fe; color: var(--brand-dark); }
 
+.btn-salir-ruta { margin-top: 8px; padding: 7px 13px; font-size: .8rem; }
+
+/* "Desde aquí": usa la ubicación como origen de la ruta (no busca alrededor). */
+.btn-desde {
+  display: inline-flex; align-items: center; gap: 5px; flex: none;
+  min-height: 32px; padding: 0 10px; margin-right: 2px;
+  border: 0; border-radius: 999px;
+  background: var(--panel); color: var(--brand);
+  font-size: .76rem; font-weight: 600; cursor: pointer; white-space: nowrap;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.btn-desde:hover { background: #eaf1fd; }
+.btn-desde.activo { color: var(--brand-dark); background: #eaf1fd; }
+
+/* Botón "cerca de mí" del mapa */
+.control-cerca button {
+  display: grid; place-items: center;
+  width: 34px; height: 34px; padding: 0;
+  border: 0; border-radius: 8px;
+  background: #fff; color: var(--brand); cursor: pointer;
+}
+.control-cerca button:hover { background: #f4f6f8; }
+.control-cerca button.activo { color: var(--brand-dark); animation: latido 1.1s infinite; }
+
 .btn-ruta { margin-top: 4px; }
 
 /* Marcadores de origen y destino */
@@ -959,6 +983,7 @@ body[data-modo="ruta"] .solo-cerca { display: none !important; }
   .brand-mark svg { width: 21px; height: 21px; }
   .buscador { order: 3; flex-basis: 100%; max-width: none; flex-wrap: wrap; gap: 8px; }
   .modo { order: -1; }
+  #btn-ubicacion span { display: inline; }
   .search { flex-basis: 100%; }
   .search-ruta { flex-wrap: wrap; }
   .ruta-campos { flex-direction: column; align-items: stretch; flex-basis: 100%; position: relative; gap: 6px; }

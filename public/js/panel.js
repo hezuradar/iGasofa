@@ -101,7 +101,10 @@ function renderRutaInfo() {
     el('span', 'ruta-punto b', 'B'), el('span', 'ruta-nombre', nombreCorto(r.destino.nombre) || r.destino.nombre)
   );
   const datos = el('p', 'ruta-datos', `${distancia(r.distanciaKm)} · ${duracion(r.duracionMin)} en coche · gasolineras a menos de ${estado.desvio} km de la ruta`);
-  cont.append(tramos, datos);
+  // Salida clara de la ruta: sin esto, escribir el CP en el origen recalcula la ruta.
+  const salir = boton('btn btn-soft btn-salir-ruta', 'Buscar cerca de un código postal',
+    () => document.dispatchEvent(new CustomEvent('igasofa:buscar-cp')));
+  cont.append(tramos, datos, salir);
 }
 
 function renderHistograma(s) {

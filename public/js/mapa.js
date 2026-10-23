@@ -57,8 +57,29 @@ function programarRepintado() {
   }, 0);
 }
 
-export function crearMapa() {
+/** Botón "cerca de mí" dentro del mapa, como en cualquier app de mapas. */
+function controlCercaDeMi(alPulsar) {
+  const Control = L.Control.extend({
+    onAdd() {
+      const cont = L.DomUtil.create('div', 'leaflet-bar control-cerca');
+      const b = L.DomUtil.create('button', '', cont);
+      b.type = 'button';
+      b.id = 'btn-mapa-cerca';
+      b.title = 'Gasolineras cerca de mí';
+      b.setAttribute('aria-label', 'Gasolineras cerca de mí');
+      b.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
+      L.DomEvent.disableClickPropagation(cont);
+      L.DomEvent.on(b, 'click', alPulsar);
+      return cont;
+    },
+  });
+  return new Control({ position: 'topleft' });
+}
+
+/** @param {{ alPedirCercania: () => void }} op */
+export function crearMapa(op) {
   mapa = L.map(ELEMENTOS.mapa, { center: [40.4637, -3.7492], zoom: 6, zoomControl: true, attributionControl: true });
+  controlCercaDeMi(op.alPedirCercania).addTo(mapa);
 
   capaVector = window.iGasofaVector.crear({
     contenedor: ELEMENTOS.mapaFondo,

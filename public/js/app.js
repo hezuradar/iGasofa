@@ -367,11 +367,21 @@ function obtenerUbicacion(botones, alObtener) {
   );
 }
 
+/** Desde cualquier modo: pasa a "Cerca" y busca alrededor de la ubicación del usuario. */
 function buscarCercaDeMi() {
-  obtenerUbicacion([ELEMENTOS.btnUbicacion, ELEMENTOS.btnUbicacion2], (lat, lon) => {
+  const botones = [ELEMENTOS.btnUbicacion, ELEMENTOS.btnUbicacion2, document.getElementById('btn-mapa-cerca')].filter(Boolean);
+  obtenerUbicacion(botones, (lat, lon) => {
     if (estado.modo !== 'cerca') cambiarModo('cerca');
     buscar({ tipo: 'coords', lat, lon });
   });
+}
+
+/** Desde una ruta: pasa a "Cerca" con el cursor en el código postal. */
+function irABuscarPorCp() {
+  plegarBusqueda(false);
+  cambiarModo('cerca');
+  ELEMENTOS.inputCp.focus();
+  ELEMENTOS.inputCp.select();
 }
 
 function origenEnMiUbicacion() {
@@ -507,8 +517,10 @@ function conectarEventos() {
  * Arranque
  * ------------------------------------------------------------------ */
 async function init() {
-  crearMapa();
+  crearMapa({ alPedirCercania: buscarCercaDeMi });
   conectarEventos();
+  // El panel pide salir de la ruta con este evento (evita importar app.js desde panel.js).
+  document.addEventListener('igasofa:buscar-cp', irABuscarPorCp);
   cambiarVista('lista');
   await cargarProductos();
   const inicial = aplicarPrefsIniciales();

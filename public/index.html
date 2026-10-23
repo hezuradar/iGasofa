@@ -36,11 +36,13 @@
       <label><input type="radio" name="modo" value="ruta"><span>En ruta</span></label>
     </fieldset>
 
+    <!-- Visible en los dos modos: siempre busca alrededor del usuario. -->
+    <button type="button" class="btn btn-ghost" id="btn-ubicacion" aria-label="Gasolineras cerca de mí">
+      <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+      <span>Cerca de mí</span>
+    </button>
+
     <form class="search" id="form-buscar" autocomplete="off">
-      <button type="button" class="btn btn-ghost" id="btn-ubicacion">
-        <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.6" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-        <span>Usar mi ubicación</span>
-      </button>
       <div class="field">
         <label class="sr-only" for="input-cp">Código postal</label>
         <input id="input-cp" name="cp" type="text" inputmode="numeric" pattern="[0-9]{5}" maxlength="5" autocomplete="postal-code" placeholder="Código postal · 28001" aria-describedby="ayuda-cp">
@@ -54,9 +56,9 @@
           <span class="ruta-punto a" aria-hidden="true">A</span>
           <label class="sr-only" for="input-origen">Origen</label>
           <input id="input-origen" type="text" maxlength="120" placeholder="Origen: ciudad, dirección o CP" enterkeyhint="next">
-          <button type="button" class="btn-icono" id="btn-origen-ubicacion" title="Usar mi ubicación como origen">
-            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-            <span class="sr-only">Usar mi ubicación como origen</span>
+          <button type="button" class="btn-desde" id="btn-origen-ubicacion" title="Usar mi ubicación como origen de la ruta" aria-label="Usar mi ubicación como origen de la ruta">
+            <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+            <span>Desde aquí</span>
           </button>
         </div>
         <button type="button" class="btn-icono invertir" id="btn-invertir" title="Intercambiar origen y destino">
